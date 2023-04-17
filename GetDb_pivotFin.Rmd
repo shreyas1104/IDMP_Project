@@ -1,0 +1,49 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+Connect to database:
+```{r}
+library("RSQLite")
+library(tidyr)
+library(dplyr)
+db.conn <- dbConnect(RSQLite::SQLite(), dbname="worldHealth_v1.db")
+```
+
+Load two dataframes
+```{r}
+economic<- dbGetQuery(db.conn,   
+"SELECT s.Series, ye.Year, l.Location, y.Data FROM yearlyWB AS y
+JOIN locations AS l ON y.Location = l.lid
+JOIN series AS s ON y.Series = s.sid
+JOIN years AS ye ON y.Year = ye.yid")
+```
+
+```{r}
+health<- dbGetQuery(db.conn,   
+"SELECT c.Cause, ye.Year, l.Location, y.Data FROM yearlyGBD AS y
+JOIN locations AS l ON y.Location = l.lid
+JOIN causes AS c ON y.Cause = c.cid
+JOIN years AS ye ON y.Year = ye.yid")
+```
+
+
+Pivot econ data
+```{r}
+economic_pivot <- economic %>% 
+  group_by(Year, Location, Series) %>% 
+  slice(1) %>% 
+  pivot_wider(names_from = Series, values_from = Data)
+```
+
+```{r}
+economic_pivot
+```
+
+Don't forget to disconnect!
+```{r}
+dbDisconnect(db.conn)
+```
+
