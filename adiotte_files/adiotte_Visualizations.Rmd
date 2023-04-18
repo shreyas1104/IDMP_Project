@@ -9,12 +9,15 @@ library(tidyr)
 library(dplyr)
 library(maps)
 library(ggplot2)
-library(extrafont)
 library(showtext)
 library(stringr)
+library(tidyverse)
 library(extrafont)
+library(cowplot)
 
-library(showtext)
+# import fonts - only once
+font_import()
+n
 font_add_google("Montserrat", "montserrat")
 showtext_auto()
 
@@ -292,6 +295,60 @@ ggplot(data = diabetes.gdp,
        legend.title = element_text(size = 8, hjust = 0.5),
        color ="World Bank Region"
        )
+```
+
+```{r}
+diabetes.gdp <- getPlotData(
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Incidence",], 
+  econ.10p[econ.10p$Series == "People using at least basic sanitation services (% of population)",])
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$Region != "Other",]
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$Year != "2019",]
+
+ggplot(data = diabetes.gdp, 
+       aes(x = `People using at least basic sanitation services (% of population)`, color = as.factor(Region),
+                                y = `Diabetes and kidney diseases, Incidence`)) + 
+  geom_point() +
+  facet_wrap(~ Year) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8,),
+    axis.text.x = element_text(size = 7),
+    axis.text.y = element_text(size = 7),
+    legend.text = element_text(size = 7),
+    legend.title = element_text(size = 8)) +
+  labs(title = "Diabetes & Kidney Disease Incidence and Access to Basic Sanitation",
+       plot.title = element_text(hjust = 0.5), 
+       legend.title = element_text(size = 8, hjust = 0.5),
+       color ="World Bank Region"
+       )
+```
+
+```{r}
+diabetes <- health.10p %>% filter(grepl("Diabetes", Cause), Year == 2000)
+diabetes
+```
+
+
+```{r}
+diabetes <- health.10p %>% 
+  filter(grepl("Diabetes", Cause)) %>% 
+  mutate(Cause = substr(Cause, start = 30, stop = length(Cause)))
+
+ggplot(data = diabetes, aes(x = as.factor(Year), y = Data, fill = Cause)) + 
+  geom_boxplot() + facet_wrap(~Cause, scales = "free") +
+  labs(title = "Diabetes and Kidney Disease Rate by Year", 
+       x = "\nYear", 
+       y = "Rate (in percentage)\n",
+       fill = "Metric") +
+  theme(
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8,),
+    axis.text.x = element_text(size = 7),
+    axis.text.y = element_text(size = 7),
+    legend.text = element_text(size = 7),
+    plot.title = element_text(hjust = 0.5))
+
 ```
 
 
