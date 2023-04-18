@@ -1,0 +1,543 @@
+---
+title: "Build World Bank/Global Burden Disease Database"
+---
+
+
+```{r}
+if("DBI" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("DBI")  
+}
+library("DBI")
+
+if("RSQLite" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("RSQLite")  
+}
+library("sqldf")
+
+if("sqldf" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("sqldf")  
+}
+library("sqldf")
+
+if("readxl" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("readxl")  
+}
+library("readxl")
+library("stringr")
+library(tidyverse)
+options(sqldf.driver = 'SQLite')
+```
+
+
+```{r}
+health <- na.omit(read.csv("HealthData.csv"))
+incident.prevalence <- na.omit(read.csv("IncidencePrevalence.csv"))
+locationCodes <- data_frame(na.omit(read.csv("All Locations Hierarchies-Table 1.csv")))
+
+
+incident.prevalence <- incident.prevalence %>% select(
+  measure = measure_name,
+  location = location_name,
+  sex = sex_name,
+  cause = cause_name,
+  metric = metric_name,
+  year,
+  val
+)
+
+health <- health %>% select(
+  measure,
+  location,
+  sex,
+  cause,
+  metric,
+  year,
+  val
+)
+
+locationCodes <- locationCodes %>% select(
+  Location.ID,
+  Location.Name, 
+  Parent.ID,
+  Level
+)
+
+health <- health[health$cause == "Cardiovascular diseases" | 
+                   health$cause == "Diabetes and kidney diseases",]
+
+healthFull <- rbind(health, incident.prevalence)
+healthFull <- healthFull %>% mutate(cause = paste(paste0(cause, ","), measure))
+healthFull$location <- str_squish(gsub("\\(.*", "", healthFull$location))
+locationCodes$Location.ID <- str_squish(gsub("\\(.*", "", locationCodes$Location.ID))
+
+
+
+```
+
+
+Normalize country names in health data
+```{r}
+healthFull$location[healthFull$location == "Republic of Moldova"] <- "Moldova"
+healthFull$location[healthFull$location == "United States of America"] <- "United States"
+healthFull$location[healthFull$location == "Côte d'Ivoire"] <- "Cote d'Ivoire"
+healthFull$location[healthFull$location =="Lao People's Democratic Republic"] <- "Lao PDR"
+healthFull$location[healthFull$location =="Saint Kitts and Nevis"] <- "St. Kitts and Nevis"
+healthFull$location[healthFull$location =="Saint Lucia"] <- "St. Lucia"
+healthFull$location[healthFull$location =="Saint Vincent and the Grenadines"] <- "St. Vincent and the Grenadines"
+healthFull$location[healthFull$location =="United Republic of Tanzania"] <- "Tanzania"
+healthFull$location[healthFull$location =="Viet Nam"] <- "Vietnam"
+
+locationCodes$Location.Name[locationCodes$Location.Name == "Republic of Moldova"] <- "Moldova"
+locationCodes$Location.Name[locationCodes$Location.Name == "United States of America"] <- "United States"
+locationCodes$Location.Name[locationCodes$Location.Name == "Côte d'Ivoire"] <- "Cote d'Ivoire"
+locationCodes$Location.Name[locationCodes$Location.Name =="Lao People's Democratic Republic"] <- "Lao PDR"
+locationCodes$Location.Name[locationCodes$Location.Name =="Saint Kitts and Nevis"] <- "St. Kitts and Nevis"
+locationCodes$Location.Name[locationCodes$Location.Name =="Saint Lucia"] <- "St. Lucia"
+locationCodes$Location.Name[locationCodes$Location.Name =="Saint Vincent and the Grenadines"] <- "St. Vincent and the Grenadines"
+locationCodes$Location.Name[locationCodes$Location.Name =="United Republic of Tanzania"] <- "Tanzania"
+locationCodes$Location.Name[locationCodes$Location.Name =="Viet Nam"] <- "Vietnam"
+
+```
+
+```{r}
+WorldBankIncome <- locationCodes[locationCodes$Location.ID %in% c(44575:44578),]
+G20 <- locationCodes[locationCodes$Parent.ID == 44586 & locationCodes$Location.ID != 44586,]
+WorldBankRegion <- locationCodes[locationCodes$Parent.ID == 478 & locationCodes$Location.ID != 478,]
+
+WorldBankIncomeCountries <- locationCodes[locationCodes$Parent.ID %in% WorldBankIncome$Location.ID,]
+WorldBankRegionCountries <- locationCodes[locationCodes$Parent.ID %in% WorldBankRegion$Location.ID,]
+
+WorldBankIncomeCountries
+WorldBankRegionCountries
+G20
+```
+
+
+Build data frames for each table
+```{r}
+db.conn <- dbConnect(RSQLite::SQLite(), dbname="worldHealth_v3.db")
+
+df.yearlyGBD <- sqldf::sqldf(
+  "select 1 as GBid,
+  cause as Cause,
+  val as Data,
+  location as Location,
+  year as Year
+  from `healthFull`"
+)
+
+df.locations <- sqldf::sqldf("
+  select 1 as lid, 
+  Location,
+  1 as IncomeLevel,
+  1 as G20,
+  1 as Region
+  from `df.yearlyGBD` 
+  group by Location
+  ")
+
+df.years <- sqldf::sqldf(
+  "select 1 as yid,
+  year as Year
+  from `df.yearlyGBD`
+  group by Year
+  ")
+
+df.causes <- sqldf::sqldf(
+  "select 1 as cid,
+  cause as Cause,
+  metric as Metric
+  from `healthFull`
+  group by Cause"
+)
+
+```
+
+
+Set foreign keys
+```{r}
+n.locations <- nrow(df.locations)
+df.locations[,1] <- seq(1, n.locations)
+
+n.years <- nrow(df.years)
+df.years[,1] <- seq(1, n.years)
+
+n.causes <- nrow(df.causes)
+df.causes[,1] <- seq(1, n.causes)
+
+
+n.yearlyGBD <- nrow(df.yearlyGBD)
+df.yearlyGBD[,1] <- seq(1, n.yearlyGBD)
+
+
+for(r in 1:n.yearlyGBD){
+  # set location id
+  lid <- df.locations$lid[which(df.locations$Location == df.yearlyGBD$Location[r])]
+  df.yearlyGBD$Location[r] <- lid
+
+  # set series id
+  cid <- df.causes$cid[which(df.causes$Cause == df.yearlyGBD$Cause[r])]
+  df.yearlyGBD$Cause[r] <- cid
+  
+  # set year id
+  yid <- df.years$yid[which(df.years$Year == df.yearlyGBD$Year[r])]
+  df.yearlyGBD$Year[r] <- yid
+
+}
+
+```
+
+
+
+```{r}
+for(country in df.locations$Location){
+  row <- df.locations[df.locations$Location == country,]
+  if(country %in% G20$Location.Name){
+    row$G20 <- "TRUE"
+  } else {
+    row$G20 <- "FALSE"
+  }
+  if(country %in% WorldBankIncomeCountries$Location.Name){
+    wbRow <- WorldBankIncomeCountries[WorldBankIncomeCountries$Location.Name == country,]
+    row$IncomeLevel <-str_sub(WorldBankIncome$Location.Name[WorldBankIncome$Location.ID == 
+                                                              wbRow$Parent.ID], start = 11)
+  }
+  if(country %in% WorldBankRegionCountries$Location.Name){
+    wrRow <- WorldBankRegionCountries[WorldBankRegionCountries$Location.Name == country,]
+    row$Region <- str_sub(WorldBankRegion$Location.Name[WorldBankRegion$Location.ID == 
+                                                          wrRow$Parent.ID], end = -6)
+  } else {
+    row$Region <- "Other"
+  }
+  df.locations[df.locations$Location == country,] <- row;
+}
+df.locations
+```
+
+
+Write tables to db
+```{r}
+dbExecute(db.conn,"
+          DROP TABLE IF EXISTS yearlyGBD")
+
+dbExecute(db.conn,"
+          DROP TABLE IF EXISTS years")
+dbExecute(db.conn,"
+          DROP TABLE IF EXISTS causes")
+dbExecute(db.conn,"
+          DROP TABLE IF EXISTS locations")
+
+```
+
+Write health data to DB
+```{r}
+dbExecute(db.conn,"
+          CREATE TABLE years  
+          (
+            Yid INTEGER PRIMARY KEY,
+            Name TEXT
+          )")
+
+dbExecute(db.conn,"
+          CREATE TABLE locations  
+          (
+            Lid INTEGER PRIMARY KEY,
+            IncomeLevel TEXT,
+            G20 TEXT,
+            Region,
+            Name TEXT
+          )")
+
+dbExecute(db.conn,"
+          CREATE TABLE causes  
+          (
+            Cid INTEGER PRIMARY KEY,
+            Name TEXT,
+            Metric TEXT
+          )")
+
+dbExecute(db.conn,"
+          CREATE TABLE yearlyGBD 
+          (
+            GBDid INTEGER PRIMARY KEY,
+            Cause INTEGER,
+            Data REAL,
+            Location INTEGER,
+            Year Integer,
+            FOREIGN KEY (Cause) REFERENCES causes(Cid),
+            FOREIGN KEY (Location) REFERENCES locations(Lid),
+            FOREIGN KEY (Year) REFERENCES years(Yid)
+          )")
+
+
+dbWriteTable(db.conn, "locations", df.locations, overwrite = T)
+dbWriteTable(db.conn, "causes", df.causes, overwrite = T)
+dbWriteTable(db.conn, "years", df.years, overwrite = T)
+dbWriteTable(db.conn, "yearlyGBD", df.yearlyGBD, overwrite = T)
+
+```
+# Econ data starts here
+```{r} 
+WB_DBI <- na.omit(read.csv("WB_WDI.csv"))
+worldBank <- WB_DBI %>% select(
+                  location = Country.Name, 
+                  series = Series.Name,
+                  `2000` = X2000..YR2000., 
+                  `2005` = X2005..YR2005.,
+                  `2010` = X2010..YR2010.,
+                  `2015` = X2015..YR2015.,
+                  `2019` = X2019..YR2019.) %>%
+  pivot_longer(`2000`:`2019`, names_to = "year") 
+
+worldBank$value[worldBank$value == ".."] <- NA
+
+worldBank$location <- str_squish(gsub("\\(.*", "", worldBank$location))
+worldBank$value <- as.numeric(worldBank$value)
+worldBank
+```
+
+Normalize names in economic data:
+```{r}
+worldBank$location[worldBank$location == "Bahamas, The"] <- "Bahamas"
+worldBank$location[worldBank$location == "Korea, Dem. People's Rep."] <- "Democratic People's Republic of Korea"
+worldBank$location[worldBank$location == "Korea, Rep."] <- "Republic of Korea"
+worldBank$location[worldBank$location == "Congo, Dem. Rep."] <- "Democratic Republic of the Congo"
+worldBank$location[worldBank$location == "Egypt, Arab Rep."] <- "Egypt" 
+worldBank$location[worldBank$location == "Gambia, The"] <- "Gambia"
+worldBank$location[worldBank$location == "Iran, Islamic Rep."] <- "Iran"
+worldBank$location[worldBank$location == "Kyrgyz Republic"] <- "Kyrgyzstan"
+worldBank$location[worldBank$location == "Congo, Rep."] <- "Congo"
+worldBank$location[worldBank$location == "Micronesia, Fed. Sts."] <- "Micronesia"
+worldBank$location[worldBank$location == "West Bank and Gaza"] <- "Palestine"
+worldBank$location[worldBank$location == "Slovak Republic"] <- "Slovakia"
+worldBank$location[worldBank$location == "Turkiye"] <- "Turkey"
+worldBank$location[worldBank$location == "Virgin Islands"] <- "United States Virgin Islands"
+worldBank$location[worldBank$location == "Venezuela, RB"] <- "Venezuela"
+worldBank$location[worldBank$location == "Yemen, Rep."] <- "Yemen"
+```
+
+These names are in econ data but not in health data
+```{r}
+countriesW <- unique(worldBank$location)
+countriesH <- unique(healthFull$location)
+wcountries <- countriesW[!countriesW %in% countriesH]
+wcountries[order(wcountries)]
+```
+
+These names are in health but not in econ data
+```{r}
+countriesW <- unique(worldBank$location)
+countriesH <- unique(healthFull$location)
+hcountries <- countriesH[!countriesH %in% countriesW]
+hcountries[order(hcountries)]
+
+```
+
+Get rid of countries not in the health data
+```{r}
+countriesW <- unique(worldBank$location)
+countriesH <- unique(healthFull$location)
+wcountries <- countriesW[!countriesW %in% countriesH]
+
+worldBank <- worldBank[!(worldBank$location %in% wcountries),]
+```
+
+Count how many nulls each Series has and the percent missing of total series
+```{r}
+series <- unique(worldBank$series[worldBank$series != ""])
+
+null.count <- data.frame(Series = character(length(series)))
+for(j in 1:length(series)){
+  null.count$NullCount[j] <- 0
+  null.count$PercentMissing[j] <- 0
+}
+
+j = 1
+for(i in 1:length(series)){
+  col <-worldBank[worldBank$series == series[i],]
+  null.count$Series[i] = series[i]
+  null.count$NullCount[i] = sum(is.na(col$value))
+  null.count$PercentMissing[i] = sum(is.na(col$value)) / nrow(col) * 100
+
+}
+
+null.count <- null.count[order(null.count$NullCount),]
+null.count
+```
+
+
+Eliminate all series with more than 10% missing:
+```{r}
+seriesList <- null.count$Series[null.count$PercentMissing > 10]
+seriesList
+
+economic.10p <- worldBank[!worldBank$series %in% seriesList,]
+economic.10p
+```
+
+Count how many nulls each country has and the percent missing
+```{r}
+locations <- unique(economic.10p$location[economic.10p$location != ""])
+
+null.count1 <- data.frame(Countries = character(length(locations)))
+for(j in 1:length(locations)){
+  null.count1$NullCount[j] <- 0
+  null.count1$PercentMissing[j] <- 0
+}
+
+
+for(i in 1:length(locations)){
+  col <-economic.10p[economic.10p$location == locations[i],]
+  null.count1$Countries[i] = locations[i]
+  null.count1$NullCount[i] = sum(is.na(col$value))
+  null.count1$PercentMissing[i] = sum(is.na(col$value)) / nrow(col) * 100
+}
+
+null.count1 <- null.count1[order(null.count1$NullCount),]
+null.count1
+```
+
+Total missing:
+With these 200 countries, 4.25% of our data values are null, but there are a few countries that are missing A LOT of data points.
+If countries are each an observation, I imagine we could eliminate some as long as it doesn't skew the data in some specific direction
+```{r}
+sum(is.na(economic.10p$value)) / length(economic.10p$value) * 100
+```
+
+
+Eliminate all countries with more than 10% missing:
+```{r}
+locList <- null.count1$Countries[null.count1$PercentMissing > 10]
+locList
+
+economic.10p <- economic.10p[!economic.10p$location %in% locList,]
+health <- health[!health$location %in% locList,]
+```
+
+Total percentage of nulls goes down to less than 1%
+```{r}
+sum(is.na(economic.10p$value)) / length(economic.10p$value) * 100
+```
+
+# Impute NA values:
+```{r}
+economic.10p[is.na(economic.10p$value),]
+mean_values <- ave(as.numeric(economic.10p$value), economic.10p$location, economic.10p$series, FUN = function(x) mean(x, na.rm=TRUE))
+
+economic_i <- economic.10p
+economic_i$value <- ifelse(is.na(economic_i$value), mean_values, economic_i$value)
+
+```
+
+
+```{r}
+# these rows were unable to be imputed as all years were null, we'll eliminate these countries from the data set as well
+economic_i[economic_i$value == "NaN",]
+countries_del <- unique(economic_i$location[economic_i$value == "NaN"])
+
+economic_i <- economic_i[!economic_i$location %in% countries_del,]
+countries_del
+```
+
+
+
+# Econ database build starts here
+Build data frames for each table
+```{r}
+db.conn <- dbConnect(RSQLite::SQLite(), dbname="worldHealth_v3.db")
+
+df.yearlyWB <- sqldf::sqldf("
+  select 1 as WBid,
+  series as Series,
+  value as Data,
+  location as Location,
+  year as Year
+  from `economic_i`")
+
+df.series <- sqldf::sqldf(
+  "select 1 as sid,
+  series as Series,
+  series as Metric
+  from `economic_i`
+  group by Series"
+)
+
+```
+
+
+Set foreign keys
+```{r}
+
+n.series <- nrow(df.series)
+df.series[,1] <- seq(1, n.series)
+
+n.yearlyWB <- nrow(df.yearlyWB)
+df.yearlyWB[,1] <- seq(1, n.yearlyWB)
+
+for(j in 1:n.yearlyWB){
+  # set location id
+  lid <- df.locations$lid[which(df.locations$Location == df.yearlyWB$Location[j])]
+  df.yearlyWB$Location[j] <- lid
+    
+  # set series id
+  sid <- df.series$sid[which(df.series$Series == df.yearlyWB$Series[j])]
+  df.yearlyWB$Series[j] <- sid
+  
+  # set year id
+  yid <- df.years$yid[which(df.years$Year == df.yearlyWB$Year[j])]
+  df.yearlyWB$Year[j] <- yid
+
+}
+
+```
+
+
+```{r}
+df.yearlyWB
+```
+
+
+Write tables to db
+```{r}
+
+dbExecute(db.conn,"
+          DROP TABLE IF EXISTS yearlyWB")
+
+dbExecute(db.conn,"
+          DROP TABLE IF EXISTS series")
+
+
+
+dbExecute(db.conn,"
+          CREATE TABLE series  
+          (
+            Sid INTEGER PRIMARY KEY,
+            Name TEXT,
+            Metric TEXT
+          )")
+
+dbExecute(db.conn,"
+          CREATE TABLE yearlyWB  
+          (
+            WBid INTEGER PRIMARY KEY,
+            Series INTEGER,
+            Data REAL,
+            Location INTEGER,
+            Year Integer,
+            FOREIGN KEY (Series) REFERENCES series(Sid),
+            FOREIGN KEY (Location) REFERENCES locations(Lid),
+            FOREIGN KEY (Year) REFERENCES years(Yid)
+          )")
+
+dbWriteTable(db.conn, "series", df.series, overwrite = T)
+dbWriteTable(db.conn, "yearlyWB", df.yearlyWB, overwrite = T)
+
+```
+
+
+
+Don't forget to disconnect!
+```{r}
+dbDisconnect(db.conn)
+```
+

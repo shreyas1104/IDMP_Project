@@ -1,0 +1,301 @@
+---
+title: "Access WB/GBD database and load dataframes"
+---
+
+Run this chunk to connect to database & build all data frames:
+```{r}
+library("RSQLite")
+library(tidyr)
+library(dplyr)
+library(maps)
+library(ggplot2)
+library(extrafont)
+library(showtext)
+library(stringr)
+library(extrafont)
+
+library(showtext)
+font_add_google("Montserrat", "montserrat")
+showtext_auto()
+
+db.conn <- dbConnect(RSQLite::SQLite(), dbname="worldHealth_v3.db")
+
+# Full list of countries
+health.full<- dbGetQuery(db.conn,   
+"SELECT c.Cause, ye.Year, l.Location, y.Data, l.Region, l.G20, l.IncomeLevel FROM yearlyGBD AS y
+JOIN locations AS l ON y.Location = l.lid
+JOIN causes AS c ON y.Cause = c.cid
+JOIN years AS ye ON y.Year = ye.yid")
+
+#Get econ data for countries w/ 10% or less data missing
+econ.10p<- dbGetQuery(db.conn,   
+"SELECT ye.year, y.Data, l.location, s.Series , l.Region, l.G20, l.IncomeLevel FROM yearlyWB AS y
+JOIN locations AS l ON y.Location = l.lid
+JOIN years AS ye ON y.Year = ye.yid
+JOIN series as s ON y.Series = s.sid")
+
+# Get health data for countries w/ 10% or less data missing
+health.10p <- dbGetQuery(db.conn,   
+"SELECT c.Cause, ye.Year, l.Location, y.Data, l.Region, l.G20, l.IncomeLevel FROM yearlyGBD AS y
+JOIN locations AS l ON y.Location = l.lid
+JOIN causes AS c ON y.Cause = c.cid
+JOIN years AS ye ON y.Year = ye.yid")
+health.10p <- health.10p[health.10p$Location %in% econ.10p$Location,]
+
+# Pivot econ data
+econ.10p_pivot <- econ.10p %>% 
+  group_by(Year, Location, Series) %>% 
+  slice(1) %>% 
+  pivot_wider(names_from = Series, values_from = Data)
+
+```
+
+
+
+
+
+```{r}
+# 204 countries total:
+health.full
+
+# 172 countries total:
+## GBD data for countries with less than 10% of data missing
+health.10p
+
+## World Bank data for countries with less than 10% of data missing
+econ.10p
+
+## World Bank data for countries with less than 10% of data missing (pivoted)
+
+econ.10p_pivot
+```
+
+
+```{r}
+world_map <- map_data("world")
+
+diabetes.rate <- health.full[(health.full$Cause == "Diabetes and kidney diseases, Prevalence") & 
+                               (health.full$Year == 2000),]
+
+diabetes.rate <- diabetes.rate %>% 
+  select(Location, Data) %>%
+  rename(region = Location) %>%
+  mutate(
+    region = case_when(
+      region == "United States" ~ "USA", 
+      region == "United Kingdom" ~ "UK",
+      region == "Russian Federation" ~ "Russia",
+      region == "Lao PDR" ~ "Laos",
+      region == "Congo" ~ "Democratic Republic of the Congo",
+      region == "Czechia" ~ "Czech Republic",
+      TRUE ~ region)
+    )
+
+diabetes.rate.map <- left_join(diabetes.rate, world_map, by = "region")
+
+ggplot(diabetes.rate.map, aes(long, lat, group = group)) +
+  geom_polygon(aes(fill=Data)) +
+  scale_fill_viridis_c() +
+  labs(title="Diabetes and kidney diseases, Prevalence Worldwide in 2000", fill ="Death rate\n(in percent)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    legend.title = element_text(size = 8, hjust = 0.5))
+```
+
+
+```{r}
+world_map <- map_data("world")
+
+diabetes.rate <- health.full[(health.full$Cause == "Diabetes and kidney diseases, Incidence") & 
+                               (health.full$Year == 2000),]
+
+diabetes.rate <- diabetes.rate %>% 
+  select(Location, Data) %>%
+  rename(region = Location) %>%
+  mutate(
+    region = case_when(
+      region == "United States" ~ "USA", 
+      region == "United Kingdom" ~ "UK",
+      region == "Russian Federation" ~ "Russia",
+      region == "Lao PDR" ~ "Laos",
+      region == "Congo" ~ "Democratic Republic of the Congo",
+      region == "Czechia" ~ "Czech Republic",
+      TRUE ~ region)
+    )
+
+diabetes.rate.map <- left_join(diabetes.rate, world_map, by = "region")
+
+ggplot(diabetes.rate.map, aes(long, lat, group = group)) +
+  geom_polygon(aes(fill=Data)) +
+  scale_fill_viridis_c() +
+  labs(title="Diabetes and kidney diseases, Incidence Worldwide in 2000", fill ="Death rate\n(in percent)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    legend.title = element_text(size = 8, hjust = 0.5))
+```
+
+
+```{r}
+world_map <- map_data("world")
+
+diabetes.rate <- health.full[(health.full$Cause == "Diabetes and kidney diseases, Deaths") & 
+                               (health.full$Year == 2000),]
+
+diabetes.rate <- diabetes.rate %>% 
+  select(Location, Data) %>%
+  rename(region = Location) %>%
+  mutate(
+    region = case_when(
+      region == "United States" ~ "USA", 
+      region == "United Kingdom" ~ "UK",
+      region == "Russian Federation" ~ "Russia",
+      region == "Lao PDR" ~ "Laos",
+      region == "Congo" ~ "Democratic Republic of the Congo",
+      region == "Czechia" ~ "Czech Republic",
+      TRUE ~ region)
+    )
+
+diabetes.rate.map <- left_join(diabetes.rate, world_map, by = "region")
+
+ggplot(diabetes.rate.map, aes(long, lat, group = group)) +
+  geom_polygon(aes(fill=Data)) +
+  scale_fill_viridis_c() +
+  labs(title="Diabetes and kidney diseases, Deaths", fill ="Death rate\n(in percent)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    legend.title = element_text(size = 8, hjust = 0.5))
+```
+
+```{r}
+
+getPlotData <- function(diabetes, gdp){
+  countries <- unique(diabetes$Location);
+  years = unique(diabetes$Year);
+  diabetes.gdp <- tibble(Location = character(), Year = numeric(), Death = numeric(), Series = character())
+  for (year in years){
+    for (country in countries){
+      temp <- tibble(Location = country, 
+                     Year = year, 
+                     
+                     Death = diabetes$Data[(diabetes$Year == year & 
+                                             diabetes$Location == country)],
+                     Series = as.numeric(gdp$Data[(gdp$Year == year & 
+                                             gdp$Location == country)]),
+                     Region = diabetes$Region[(gdp$Year == year & 
+                                             gdp$Location == country)],
+                     G20 = diabetes$G20[(gdp$Year == year & 
+                                             gdp$Location == country)],
+                     IncomeLevel = diabetes$IncomeLevel[(gdp$Year == year & 
+                                             gdp$Location == country)])
+      diabetes.gdp <- rbind(temp, diabetes.gdp)
+      
+    }
+  }
+
+  colnames(diabetes.gdp)[4] <- unique(gdp$Series)
+  colnames(diabetes.gdp)[3] <- unique(diabetes$Cause)
+  diabetes.gdp
+  }
+
+```
+
+
+
+```{r}
+diabetes.gdp <- getPlotData(
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Deaths",], 
+  econ.10p[econ.10p$Series == "GDP (current US$)",])
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$IncomeLevel != 1,]
+
+ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(IncomeLevel),
+                                y = `Diabetes and kidney diseases, Deaths`)) + geom_boxplot()
+```
+
+
+```{r}
+diabetes.gdp <- getPlotData(
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Deaths",], 
+  econ.10p[econ.10p$Series == "GDP (current US$)",])
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$Region != "Other",]
+
+ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(G20),
+                                y = `Diabetes and kidney diseases, Deaths`)) + geom_boxplot()
+```
+
+```{r}
+diabetes.gdp <- getPlotData(
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Deaths",], 
+  econ.10p[econ.10p$Series == "GDP (current US$)",])
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$Region != "Other",]
+
+ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(Region),
+                                y = `Diabetes and kidney diseases, Deaths`)) + geom_boxplot()
+```
+
+
+```{r}
+diabetes.gdp <- getPlotData(
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Incidence",], 
+  econ.10p[econ.10p$Series == "CO2 emissions (metric tons per capita)",])
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$Region != "Other",]
+
+ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(Region),
+                                y = `Diabetes and kidney diseases, Incidence`)) + geom_boxplot()
+```
+
+
+```{r}
+diabetes.gdp <- getPlotData(
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Prevalence",], 
+  econ.10p[econ.10p$Series == "CO2 emissions (metric tons per capita)",])
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$Region != "Other",]
+
+ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(Region),
+                                y = `Diabetes and kidney diseases, Prevalence`)) + geom_boxplot()
+```
+
+```{r}
+diabetes.gdp <- getPlotData(
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Incidence",], 
+  econ.10p[econ.10p$Series == "CO2 emissions (metric tons per capita)",])
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$IncomeLevel != 1,]
+
+ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(IncomeLevel),
+                                y = `Diabetes and kidney diseases, Incidence`)) + geom_boxplot()
+```
+
+```{r}
+diabetes.gdp <- getPlotData(
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Incidence",], 
+  econ.10p[econ.10p$Series == "CO2 emissions (metric tons per capita)",])
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$Region != "Other",]
+diabetes.gdp <- diabetes.gdp[diabetes.gdp$Year != "2019",]
+
+ggplot(data = diabetes.gdp, 
+       aes(x = `CO2 emissions (metric tons per capita)`, color = as.factor(Region),
+                                y = `Diabetes and kidney diseases, Incidence`)) + 
+  geom_point() +
+  facet_wrap(~ Year) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8,),
+    axis.text.x = element_text(size = 7),
+    axis.text.y = element_text(size = 7),
+    legend.text = element_text(size = 7),
+    legend.title = element_text(size = 8)) +
+  labs(title = "Diabetes & Kidney Disease Incidence vs. C02 Emissions by Year",
+       plot.title = element_text(hjust = 0.5), 
+       legend.title = element_text(size = 8, hjust = 0.5),
+       color ="World Bank Region"
+       )
+```
+
+
+Don't forget to disconnect!
+```{r}
+dbDisconnect(db.conn)
+```
