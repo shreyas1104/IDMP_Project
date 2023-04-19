@@ -65,6 +65,63 @@ econ.10p
 econ.10p_pivot
 ```
 
+```{r}
+health.10p.diabetes <- read_csv("diabetes_2000_2019.csv")
+health.10p.diabetes <- health.10p.diabetes[health.10p.diabetes$location %in% econ.10p$Location,]
+```
+
+```{r fig.width = 10}
+df <- as.data.frame(
+  health.10p.diabetes  %>%
+    filter(measure == "Prevalence") %>%
+    group_by(year) %>%
+    summarise(
+      Avg = mean(val)
+    )
+)
+
+ggplot(df,
+       aes(x = year, y = Avg)) +
+    geom_line() + geom_point(color="red") + 
+  scale_x_continuous(breaks=2000:2019) + 
+  labs(title = "Avg. Prevalence Percent of Diabetes and Kidney diseases by Year",
+       x = "Year", y = "Avg. Prevalence Percentage")
+```
+
+```{r fig.width = 10}
+df <- as.data.frame(
+  health.10p.diabetes  %>%
+    filter(measure == "Incidence") %>%
+    group_by(year) %>%
+    summarise(
+      Avg = mean(val)
+    )
+)
+
+ggplot(df,
+       aes(x = year, y = Avg)) +
+    geom_line() + geom_point(color="red") + 
+  scale_x_continuous(breaks=2000:2019) + 
+  labs(title = "Avg. Incidence Percent of Diabetes and Kidney diseases by Year",
+       x = "Year", y = "Avg. Incidence Percentage")
+```
+
+```{r fig.width = 10}
+df <- as.data.frame(
+  health.10p.diabetes  %>%
+    filter(measure == "Deaths") %>%
+    group_by(year) %>%
+    summarise(
+      Avg = mean(val)
+    )
+)
+
+ggplot(df, aes(x = year, y = Avg)) + 
+  geom_line() + geom_point(color="red") + 
+  scale_x_continuous(breaks=2000:2019) +
+  labs(title = "Avg. Death Percent of Diabetes and Kidney diseases by Year",
+       x = "Year", y = "Avg. Death Percentage")
+```
 
 ```{r}
 world_map <- map_data("world")
