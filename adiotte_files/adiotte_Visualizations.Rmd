@@ -502,6 +502,201 @@ ggplot(data = diabetes,
     )
 
 ```
+##########################################################      aditi's eda      ##########################################
+economic <- data.frame(econ.10p_pivot)
+
+colnames(economic)[3] <- "Access_to_clean_fuels_and_technologies_for_cooking"
+colnames(economic)[4] <- "Access_to_electricity"
+colnames(economic)[5] <- "Agricultural_land_percent_of_land_area"
+colnames(economic)[6] <- "Agricultural_land_sq_km"
+colnames(economic)[7] <- "CO2_emissions_kg"
+colnames(economic)[8] <- "CO2_emissions_kt"
+colnames(economic)[9] <- "CO2_emissions_metric_tons_per_capita"
+colnames(economic)[10] <- "Current_health_expenditure_percent_of_GDP"
+colnames(economic)[11] <- "Current_health_expenditure_per_capita"
+colnames(economic)[12] <- "Domestic_general_government_health_expenditure_percent_of_current_health_expenditure"
+colnames(economic)[13] <- "Domestic_general_government_health_expenditure_percent_of_GDP"
+colnames(economic)[14] <- "Domestic_general_government_health_expenditure_percent_of_general_government_expenditure"
+colnames(economic)[15] <- "Domestic_general_government_health_expenditure_per_capita"
+colnames(economic)[16] <- "Domestic_private_health_expenditure_percent_of_current_health_expenditure"
+colnames(economic)[17] <- "Domestic_private_health_expenditure_per_capita"
+colnames(economic)[18] <- "Domestic_private_health_expenditure_per_capita_PPP"
+colnames(economic)[19] <- "Fertility_rate"
+colnames(economic)[20] <- "Fixed_telephone_subscriptions"
+colnames(economic)[21] <- "Fixed_telephone_subscriptions_per_100_people"
+colnames(economic)[22] <- "Forest_area_percent_of_land_area"
+colnames(economic)[23] <- "GDP_constant_2015_US"
+colnames(economic)[24] <- "GDP_current_US"
+colnames(economic)[25] <- "GDP_growth_annual"
+colnames(economic)[26] <- "GDP_per_capita_constant_2015_US"
+colnames(economic)[27] <- "GDP_per_capita_current_US"
+colnames(economic)[28] <- "GDP_per_capita_growth_annual"
+colnames(economic)[29] <- "Individuals_using_the_Internet_percent_of_population"
+colnames(economic)[30] <- "Land_area_sq_km"
+colnames(economic)[31] <- "Mobile_cellular_subscriptions_per_100_people"
+colnames(economic)[32] <- "Nitrous_oxide_emissions"
+colnames(economic)[33] <- "Out_of_pocket_expenditure_percent_of_current_health_expenditure"
+colnames(economic)[34] <- "Out_of_pocket_expenditure_per_capita_current_US"
+colnames(economic)[35] <- "People_using_atleast_basic_drinking_water_services_percent_of_population"
+colnames(economic)[36] <- "People_using_atleast_basic_sanitation_services_percent_of_population"
+colnames(economic)[37] <- "Permanent_cropland_percent_of_land_area"
+colnames(economic)[38] <- "Population_density_people_per_sq_km_of_land_area"
+colnames(economic)[39] <- "Population_growth_annual"
+colnames(economic)[40] <- "Proportion_of_seats_held_by_women_in_parliaments"
+colnames(economic)[41] <- "Total_greenhouse_gas_emissions_kt"
+
+```
+
+
+```{r}
+health_pivot <- health.10p %>% 
+  group_by(Year, Location, Cause) %>% 
+  slice(1) %>% 
+  pivot_wider(names_from = Cause, values_from = Data)
+```
+```{r}
+library(dplyr)
+library(ggplot2)
+
+
+# group the data by year and calculate the sum of Diabetes and kidney diseases, Deaths for each country
+df_top <- health_pivot %>%
+  group_by(Year, Location) %>%
+  summarize(Value1_sum = sum(`Diabetes and kidney diseases, Deaths`)) %>%
+  ungroup()
+
+# select the top 5 countries for every year based on Value1_sum
+df_top <- df_top %>%
+  group_by(Year) %>%
+  top_n(n = 5, wt = Value1_sum)
+
+# plot the data
+ggplot(df_top, aes(x = Year, y = Value1_sum)) +
+  geom_col(aes(fill = Location, group = Location), position = "dodge") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(x = "Year", y = "`Diabetes and kidney diseases, Deaths`", title = "Top 5 Countries by Diabetes and kidney diseases, Deaths") +
+  theme_minimal()
+  
+```
+
+```{r}
+# group the data by year and calculate the sum of Diabetes and kidney diseases, Incidence for each country
+df_top <- health_pivot %>%
+  group_by(Year, Location) %>%
+  summarize(Value1_sum = sum(`Diabetes and kidney diseases, Incidence`)) %>%
+  ungroup()
+
+# select the top 5 countries for every year based on Value1_sum
+df_top <- df_top %>%
+  group_by(Year) %>%
+  top_n(n = 5, wt = Value1_sum)
+
+# plot the data
+ggplot(df_top, aes(x = Year, y = Value1_sum)) +
+  geom_col(aes(fill = Location, group = Location), position = "dodge") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(x = "Year", y = "`Diabetes and kidney diseases, Incidence`", title = "Top 5 Countries by Diabetes and kidney diseases, Incidence") +
+  theme_minimal()
+```
+
+```{r}
+# group the data by year and calculate the sum of Diabetes and kidney diseases, Prevalence for each country
+df_top <- health_pivot %>%
+  group_by(Year, Location) %>%
+  summarize(Value1_sum = sum(`Diabetes and kidney diseases, Prevalence`)) %>%
+  ungroup()
+
+# select the top 5 countries for every year based on Value1_sum
+df_top <- df_top %>%
+  group_by(Year) %>%
+  top_n(n = 5, wt = Value1_sum)
+
+# plot the data
+ggplot(df_top, aes(x = Year, y = Value1_sum)) +
+  geom_col(aes(fill = Location, group = Location), position = "dodge") +
+  scale_fill_brewer(palette = "Set2") +
+  labs(x = "Year", y = "`Diabetes and kidney diseases, Prevalence`", title = "Top 5 Countries by Diabetes and kidney diseases, Prevalence") +
+  theme_minimal()
+```
+
+
+```{r}
+library(ggplot2)
+library(ggmap)
+library(maps)
+library(mapdata)
+
+
+# group the data by location and calculate the mean of Diabetes and kidney diseases, Prevalence for each location
+df_mean <- health_pivot %>%
+  group_by(Location) %>%
+  summarize(Value1_mean = mean(`Diabetes and kidney diseases, Prevalence`)) %>%
+  ungroup()
+
+# get the world map data
+world_map <- map_data("world")
+
+# join the mean values with the map data by location
+world_map <- left_join(world_map, df_mean, by = c("region" = "Location"))
+
+# plot the data on the map
+ggplot(world_map, aes(x = long, y = lat, group = group, fill = Value1_mean)) +
+  geom_polygon(color = "gray50") +
+  scale_fill_gradient(low = "lightblue", high = "darkblue", name = "`Diabetes and kidney diseases, Prevalence`") +
+  theme_void() +
+  coord_equal() +
+  ggtitle("Diabetes and kidney diseases, Prevalence by Location")
+
+```
+
+```{r}
+# group the data by location and calculate the mean of Diabetes and kidney diseases, Incidence for each location
+df_mean <- health_pivot %>%
+  group_by(Location) %>%
+  summarize(Value1_mean = mean(`Diabetes and kidney diseases, Incidence`)) %>%
+  ungroup()
+
+# get the world map data
+world_map <- map_data("world")
+
+# join the mean values with the map data by location
+world_map <- left_join(world_map, df_mean, by = c("region" = "Location"))
+
+# plot the data on the map
+ggplot(world_map, aes(x = long, y = lat, group = group, fill = Value1_mean)) +
+  geom_polygon(color = "gray50") +
+  scale_fill_gradient(low = "lightblue", high = "darkblue", name = "`Diabetes and kidney diseases, Incidence`") +
+  theme_void() +
+  coord_equal() +
+  ggtitle("Diabetes and kidney diseases, Incidence by Location")
+```
+
+```{r}
+# group the data by location and calculate the mean of Diabetes and kidney diseases, Deaths for each location
+df_mean <- health_pivot %>%
+  group_by(Location) %>%
+  summarize(Value1_mean = mean(`Diabetes and kidney diseases, Deaths`)) %>%
+  ungroup()
+
+# get the world map data
+world_map <- map_data("world")
+
+# join the mean values with the map data by location
+world_map <- left_join(world_map, df_mean, by = c("region" = "Location"))
+
+# plot the data on the map
+ggplot(world_map, aes(x = long, y = lat, group = group, fill = Value1_mean)) +
+  geom_polygon(color = "gray50") +
+  scale_fill_gradient(low = "lightblue", high = "darkblue", name = "`Diabetes and kidney diseases, Deaths`") +
+  theme_void() +
+  coord_equal() +
+  ggtitle("Diabetes and kidney diseases, Deaths by Location")
+```
+
+
+
+
+
 
 
 Don't forget to disconnect!
