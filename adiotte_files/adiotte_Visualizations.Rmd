@@ -12,14 +12,6 @@ library(ggplot2)
 library(showtext)
 library(stringr)
 library(tidyverse)
-library(extrafont)
-library(cowplot)
-
-# import fonts - only once
-font_import()
-n
-font_add_google("Montserrat", "montserrat")
-showtext_auto()
 
 db.conn <- dbConnect(RSQLite::SQLite(), dbname="worldHealth_v3.db")
 
@@ -103,7 +95,8 @@ ggplot(diabetes.rate.map, aes(long, lat, group = group)) +
   theme_minimal() +
   theme(
     plot.title = element_text(hjust = 0.5), 
-    legend.title = element_text(size = 8, hjust = 0.5))
+    legend.title = element_text(size = 8, hjust = 0.5),
+    text = element_text(family = "Montserrat"))
 ```
 
 
@@ -220,12 +213,12 @@ ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(IncomeLeve
 
 ```{r}
 diabetes.gdp <- getPlotData(
-  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Deaths",], 
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Prevalence",], 
   econ.10p[econ.10p$Series == "GDP (current US$)",])
 diabetes.gdp <- diabetes.gdp[diabetes.gdp$Region != "Other",]
 
 ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(G20),
-                                y = `Diabetes and kidney diseases, Deaths`)) + geom_boxplot()
+                                y = `Diabetes and kidney diseases, Prevalence`)) + geom_boxplot()
 ```
 
 ```{r}
@@ -262,12 +255,12 @@ ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(Region),
 
 ```{r}
 diabetes.gdp <- getPlotData(
-  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Incidence",], 
+  health.10p[health.10p$Cause == "Diabetes and kidney diseases, Prevalence",], 
   econ.10p[econ.10p$Series == "CO2 emissions (metric tons per capita)",])
 diabetes.gdp <- diabetes.gdp[diabetes.gdp$IncomeLevel != 1,]
 
 ggplot(data = diabetes.gdp, aes(x = as.factor(Year), fill = as.factor(IncomeLevel),
-                                y = `Diabetes and kidney diseases, Incidence`)) + geom_boxplot()
+                                y = `Diabetes and kidney diseases, Prevalence`)) + geom_boxplot()
 ```
 
 ```{r}
@@ -324,10 +317,6 @@ ggplot(data = diabetes.gdp,
        )
 ```
 
-```{r}
-diabetes <- health.10p %>% filter(grepl("Diabetes", Cause), Year == 2000)
-diabetes
-```
 
 
 ```{r}
@@ -337,7 +326,7 @@ diabetes <- health.10p %>%
 
 ggplot(data = diabetes, aes(x = as.factor(Year), y = Data, fill = Cause)) + 
   geom_boxplot() + facet_wrap(~Cause, scales = "free") +
-  labs(title = "Diabetes and Kidney Disease Rate by Year", 
+  labs(title = "Diabetes and Kidney Disease Rate by Year\n", 
        x = "\nYear", 
        y = "Rate (in percentage)\n",
        fill = "Metric") +
@@ -348,6 +337,35 @@ ggplot(data = diabetes, aes(x = as.factor(Year), y = Data, fill = Cause)) +
     axis.text.y = element_text(size = 7),
     legend.text = element_text(size = 7),
     plot.title = element_text(hjust = 0.5))
+
+```
+```{r}
+diabetes
+```
+
+
+```{r}
+diabetes <- health.10p %>% 
+  filter(grepl("Diabetes", Cause), IncomeLevel != 1) %>% 
+  mutate(Cause = substr(Cause, start = 30, stop = length(Cause)),
+         IncomeLevel = trimws(IncomeLevel))
+
+ggplot(data = diabetes, 
+       aes(x = factor(IncomeLevel, level=c('Low Income', 'Lower Middle Income', 'Upper Middle Income', 'High Income')), 
+                            y = Data, fill = Cause)) + 
+  geom_boxplot() + facet_wrap(~Cause, scales = "free") +
+  labs(title = "Diabetes and Kidney Disease Rate by Year\n", 
+       x = "\nYear", 
+       y = "Rate (in percentage)\n",
+       fill = "Metric") +
+  theme(
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8,),
+    axis.text.x = element_text(size = 7, angle = 90),
+    axis.text.y = element_text(size = 7),
+    legend.text = element_text(size = 7),
+    plot.title = element_text(hjust = 0.5)
+    )
 
 ```
 
