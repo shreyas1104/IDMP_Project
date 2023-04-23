@@ -30,9 +30,9 @@ options(sqldf.driver = 'SQLite')
 
 
 ```{r}
-health <- na.omit(read.csv("HealthData.csv"))
-incident.prevalence <- na.omit(read.csv("IncidencePrevalence.csv"))
-locationCodes <- data_frame(na.omit(read.csv("All Locations Hierarchies-Table 1.csv")))
+health <- na.omit(read.csv("../Datasets/HealthData.csv"))
+incident.prevalence <- na.omit(read.csv("../Datasets/IncidencePrevalence.csv"))
+locationCodes <- data_frame(na.omit(read.csv("../Datasets/All Locations Hierarchies-Table 1.csv")))
 
 
 incident.prevalence <- incident.prevalence %>% select(
@@ -278,7 +278,7 @@ dbWriteTable(db.conn, "yearlyGBD", df.yearlyGBD, overwrite = T)
 ```
 # Econ data starts here
 ```{r} 
-WB_DBI <- na.omit(read.csv("WB_WDI.csv"))
+WB_DBI <- na.omit(read.csv("../Datasets/WB_WDI.csv"))
 worldBank <- WB_DBI %>% select(
                   location = Country.Name, 
                   series = Series.Name,
@@ -533,8 +533,6 @@ dbWriteTable(db.conn, "series", df.series, overwrite = T)
 dbWriteTable(db.conn, "yearlyWB", df.yearlyWB, overwrite = T)
 
 ```
-
-
 
 Don't forget to disconnect!
 ```{r}
