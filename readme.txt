@@ -1,4 +1,4 @@
-Modeling Deaths for Diabetes & Kidney Diseases, Globally
+# Modeling Deaths for Diabetes & Kidney Diseases, Globally
 
 Authors: Shreyas Dikshit, Amare Diotte, Tay Goodwin, Aditi Gupta
 
