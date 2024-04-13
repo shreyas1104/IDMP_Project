@@ -10,8 +10,6 @@ This project aims to use historically available data about death rates for diabe
 - [Results](#results)
 - [Discussion and Conclusion](#discussion-and-conclusion)
 - [Contributors](#contributors)
-- [References](#references)
-- [Repository Contents](#repository-contents)
 
 ## Overview
 
